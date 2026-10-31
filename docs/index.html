@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#071a14">
+  <title>Padel Analytics · Histórico</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <header class="hero">
+    <div class="hero__glow"></div>
+    <div class="shell hero__content">
+      <div>
+        <p class="eyebrow">PADEL PERFORMANCE LAB</p>
+        <h1>Análisis histórico</h1>
+        <p class="hero__subtitle">La evolución de cada jugador, punto por punto.</p>
+      </div>
+      <div class="hero__score">
+        <span>Score / 100</span>
+        <strong id="hero-score">—</strong>
+      </div>
+    </div>
+  </header>
+
+  <main class="shell main">
+    <section id="demo-banner" class="notice hidden">
+      Estás viendo datos de demostración. Reemplaza <code>data/consolidado_padel.csv</code> para publicar tu histórico.
+    </section>
+
+    <section class="filters card">
+      <div class="filter filter--player">
+        <label for="player-filter">Jugador</label>
+        <select id="player-filter"></select>
+      </div>
+      <div class="filter">
+        <label for="date-from">Desde</label>
+        <input id="date-from" type="date">
+      </div>
+      <div class="filter">
+        <label for="date-to">Hasta</label>
+        <input id="date-to" type="date">
+      </div>
+      <div class="filter">
+        <label for="point-filter">Tipo de punto</label>
+        <select id="point-filter">
+          <option value="all">Todos</option>
+          <option value="key">Key Point</option>
+          <option value="regular">Regular Point</option>
+        </select>
+      </div>
+      <div class="filter filter--sets">
+        <span class="filter__label">Sets</span>
+        <div id="set-filter" class="check-row"></div>
+      </div>
+      <button id="reset-filters" class="button button--ghost" type="button">Restablecer</button>
+    </section>
+
+    <nav class="tabs" aria-label="Secciones del análisis">
+      <button class="tab is-active" data-tab="summary">Resumen</button>
+      <button class="tab" data-tab="evolution">Evolución</button>
+      <button class="tab" data-tab="shots">Golpes</button>
+      <button class="tab" data-tab="keypoints">Key Points</button>
+      <button class="tab" data-tab="sets">Sets</button>
+      <button class="tab" data-tab="players">Jugadores</button>
+    </nav>
+
+    <section id="summary" class="panel is-active">
+      <div id="summary-cards" class="stat-grid"></div>
+      <div class="content-grid">
+        <article class="card chart-card">
+          <div class="section-heading">
+            <div><span class="kicker">COMPOSICIÓN</span><h2>Eventos del jugador</h2></div>
+          </div>
+          <div class="chart-wrap"><canvas id="summary-chart"></canvas></div>
+        </article>
+        <article class="card formula-card">
+          <span class="kicker">FÓRMULA</span>
+          <h2>Cómo se calcula</h2>
+          <div class="formula"><b>4</b>×W <em>+</em> <b>3</b>×EP <em>−</em> <b>2</b>×EF <em>−</em> <b>5</b>×ENF</div>
+          <p>El resultado se divide por los puntos jugados y se expresa cada 100 puntos.</p>
+          <div class="legend-list">
+            <span><i class="dot dot--w"></i>Winner</span>
+            <span><i class="dot dot--ep"></i>Error provocado</span>
+            <span><i class="dot dot--ef"></i>Error forzado</span>
+            <span><i class="dot dot--enf"></i>Error no forzado</span>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section id="evolution" class="panel">
+      <article class="card chart-card chart-card--wide">
+        <div class="section-heading"><div><span class="kicker">TENDENCIA</span><h2>Score / 100 por partido</h2></div></div>
+        <div class="chart-wrap chart-wrap--tall"><canvas id="evolution-chart"></canvas></div>
+      </article>
+      <article class="card table-card">
+        <div class="section-heading"><div><span class="kicker">DETALLE</span><h2>Partidos analizados</h2></div></div>
+        <div class="table-scroll"><table id="evolution-table"></table></div>
+      </article>
+    </section>
+
+    <section id="shots" class="panel">
+      <div class="content-grid content-grid--equal">
+        <article class="card table-card">
+          <div class="section-heading"><div><span class="kicker">EVENTOS</span><h2>Rendimiento por golpe</h2></div></div>
+          <div class="table-scroll"><table id="shots-table"></table></div>
+        </article>
+        <article class="card chart-card">
+          <div class="section-heading section-heading--split">
+            <div><span class="kicker">BALANCE</span><h2>Aciertos vs. errores</h2></div>
+            <label class="inline-select">Ordenar por
+              <select id="shot-order"><option value="positive">Winners + EP</option><option value="enf">Errores no forzados</option></select>
+            </label>
+          </div>
+          <div class="chart-wrap chart-wrap--xl"><canvas id="shots-chart"></canvas></div>
+        </article>
+      </div>
+    </section>
+
+    <section id="keypoints" class="panel">
+      <article class="card chart-card chart-card--wide">
+        <div class="section-heading"><div><span class="kicker">PRESIÓN</span><h2>Todos los puntos vs. Key Points</h2></div></div>
+        <div class="chart-wrap chart-wrap--tall"><canvas id="key-chart"></canvas></div>
+      </article>
+      <article class="card table-card"><div class="table-scroll"><table id="key-table"></table></div></article>
+    </section>
+
+    <section id="sets" class="panel">
+      <article class="card chart-card chart-card--wide">
+        <div class="section-heading"><div><span class="kicker">PARTIDO</span><h2>Score / 100 por set</h2></div></div>
+        <div class="chart-wrap chart-wrap--tall"><canvas id="sets-chart"></canvas></div>
+      </article>
+      <article class="card table-card"><div class="table-scroll"><table id="sets-table"></table></div></article>
+    </section>
+
+    <section id="players" class="panel">
+      <article class="card table-card">
+        <div class="section-heading section-heading--split">
+          <div><span class="kicker">RANKING</span><h2>Todos los jugadores</h2></div>
+          <input id="player-search" class="search" type="search" placeholder="Buscar jugador…">
+        </div>
+        <div class="table-scroll"><table id="players-table"></table></div>
+      </article>
+    </section>
+
+    <section id="empty-state" class="card empty hidden">
+      <h2>No hay datos para esta selección</h2>
+      <p>Prueba ampliando el rango de fechas o seleccionando otros sets.</p>
+    </section>
+
+    <footer>
+      <span id="data-status">Cargando datos…</span>
+      <span>Padel Analytics</span>
+    </footer>
+  </main>
+</body>
+</html>
+
