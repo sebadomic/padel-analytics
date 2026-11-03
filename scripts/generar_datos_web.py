@@ -137,11 +137,21 @@ def convert() -> dict[str, object]:
             all_players.add(forced_by)
 
         events.append({
+            "order": row_number,
+            "eventId": get(row, columns, "event_id"),
+            "pointId": get(row, columns, "point_id"),
             "date": date,
             "match": match,
+            "matchType": get(row, columns, "match_type", "tipo_partido", "tipo de partido"),
             "participants": event_participants,
+            "reves1": get(row, columns, "reves_1", "revés_1"),
+            "drive1": get(row, columns, "drive_1"),
+            "reves2": get(row, columns, "reves_2", "revés_2"),
+            "drive2": get(row, columns, "drive_2"),
             "player": player,
             "forcedBy": forced_by,
+            "server": get(row, columns, "server", "sacador"),
+            "serveType": get(row, columns, "saque", "serve_type"),
             "eventType": get(row, columns, "event_type"),
             "shotType": get(row, columns, "shot_type") or "Sin golpe",
             "pointType": normalize_point_type(get(row, columns, "point_type")),
