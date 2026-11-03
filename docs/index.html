@@ -19,7 +19,7 @@
         <h1>Análisis histórico</h1>
         <p class="hero__subtitle">La evolución de cada jugador, punto por punto.</p>
       </div>
-      <div class="hero__score">
+      <div id="hero-score-card" class="hero__score">
         <span>Score / 100</span>
         <strong id="hero-score">—</strong>
       </div>
@@ -31,7 +31,7 @@
       Estás viendo datos de demostración. Reemplaza <code>data/consolidado_padel.csv</code> para publicar tu histórico.
     </section>
 
-    <section class="filters card">
+    <section id="global-filters" class="filters card">
       <div class="filter filter--player">
         <label for="player-filter">Jugador</label>
         <select id="player-filter"></select>
@@ -66,6 +66,7 @@
       <button class="tab" data-tab="keypoints">Key Points</button>
       <button class="tab" data-tab="sets">Sets</button>
       <button class="tab" data-tab="players">Jugadores</button>
+      <button class="tab" data-tab="match">Partido</button>
     </nav>
 
     <section id="summary" class="panel is-active">
@@ -145,6 +146,43 @@
         </div>
         <div class="table-scroll"><table id="players-table"></table></div>
       </article>
+    </section>
+
+    <section id="match" class="panel">
+      <article class="card match-controls">
+        <div class="section-heading match-heading">
+          <div><span class="kicker">ANÁLISIS INDIVIDUAL</span><h2>Selecciona un partido</h2></div>
+          <p id="match-description">El gráfico y los resúmenes se recalculan para la fecha, partido y set elegidos.</p>
+        </div>
+        <div class="match-filter-grid">
+          <div class="filter">
+            <label for="match-date-filter">Fecha</label>
+            <select id="match-date-filter"></select>
+          </div>
+          <div class="filter">
+            <label for="match-filter">Partido</label>
+            <select id="match-filter"></select>
+          </div>
+          <div class="filter">
+            <label for="match-set-filter">Set</label>
+            <select id="match-set-filter"></select>
+          </div>
+        </div>
+      </article>
+
+      <article class="card chart-card chart-card--wide match-chart-card">
+        <div class="section-heading section-heading--split">
+          <div><span class="kicker">EVOLUCIÓN</span><h2 id="match-chart-title">Score acumulado del partido</h2></div>
+          <div id="match-badge" class="match-badge"></div>
+        </div>
+        <div class="chart-wrap chart-wrap--match"><canvas id="match-chart"></canvas></div>
+      </article>
+
+      <div id="match-summary-cards" class="match-player-grid"></div>
+      <section id="match-empty" class="card empty hidden">
+        <h2>No hay eventos para este partido</h2>
+        <p>Selecciona otra fecha, partido o set.</p>
+      </section>
     </section>
 
     <section id="empty-state" class="card empty hidden">

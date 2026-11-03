@@ -32,6 +32,129 @@ function metrics(events, player) {
   return { points, W, EP, EF, ENF, score, score100: pct(score, points), pctW: pct(W, points), pctEP: pct(EP, points), pctEF: pct(EF, points), pctENF: pct(ENF, points) };
 }
 
+const MATCH_COLORS = ["#0a6b46", "#5e35b1", "#0277bd", "#e65100"];
+const RIVAL_REVES = "Reves Rival";
+const RIVAL_DRIVE = "Drive Rival";
+
+const normalizedKey = (value) => key(value).normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+const firstValue = (events, field) => events.map(event => event[field]).find(value => String(value || "").trim()) || "";
+
+function isAmericano(events) {
+  return events.some(event => normalizedKey(event.matchType).includes("americano"));
+}
+
+function buildMatchContext(events) {
+  const americano = isAmericano(events);
+  const reves1 = firstValue(events, "reves1");
+  const drive1 = firstValue(events, "drive1");
+  const reves2 = firstValue(events, "reves2");
+  const drive2 = firstValue(events, "drive2");
+  const positionMap = new Map();
+  const team1Keys = new Set();
+
+  events.forEach(event => {
+    [event.reves1, event.drive1].forEach(name => {
+      if (normalizedKey(name)) team1Keys.add(normalizedKey(name));
+    });
+    if (normalizedKey(event.reves2)) positionMap.set(normalizedKey(event.reves2), RIVAL_REVES);
+    if (normalizedKey(event.drive2) && !positionMap.has(normalizedKey(event.drive2))) positionMap.set(normalizedKey(event.drive2), RIVAL_DRIVE);
+  });
+
+  positionMap.set(normalizedKey(RIVAL_REVES), RIVAL_REVES);
+  positionMap.set(normalizedKey(RIVAL_DRIVE), RIVAL_DRIVE);
+
+  if (americano) {
+    const participantOrder = [];
+    const seen = new Set();
+    events.forEach(event => {
+      [event.player, event.forcedBy, event.server].forEach(name => {
+        const nameKey = normalizedKey(name);
+        if (nameKey && !seen.has(nameKey)) {
+          participantOrder.push(nameKey);
+          seen.add(nameKey);
+        }
+      });
+    });
+
+    let revesCount = [...positionMap.values()].filter(value => value === RIVAL_REVES).length;
+    let driveCount = [...positionMap.values()].filter(value => value === RIVAL_DRIVE).length;
+    participantOrder
+      .filter(nameKey => !team1Keys.has(nameKey) && !positionMap.has(nameKey))
+      .forEach(nameKey => {
+        if (revesCount <= driveCount) {
+          positionMap.set(nameKey, RIVAL_REVES);
+          revesCount++;
+        } else {
+          positionMap.set(nameKey, RIVAL_DRIVE);
+          driveCount++;
+        }
+      });
+  }
+
+  let players;
+  if (americano) {
+    players = [
+      { name: reves1, position: "Revés", team: "Equipo 1" },
+      { name: drive1, position: "Drive", team: "Equipo 1" },
+      { name: RIVAL_REVES, position: "Revés", team: "Equipo 2" },
+      { name: RIVAL_DRIVE, position: "Drive", team: "Equipo 2" }
+    ];
+  } else {
+    players = [
+      { name: reves1, position: "Revés", team: "Equipo 1" },
+      { name: drive1, position: "Drive", team: "Equipo 1" },
+      { name: reves2, position: "Revés", team: "Equipo 2" },
+      { name: drive2, position: "Drive", team: "Equipo 2" }
+    ];
+  }
+
+  const uniquePlayers = [];
+  const playerKeys = new Set();
+  players.forEach(player => {
+    const playerKey = normalizedKey(player.name);
+    if (playerKey && !playerKeys.has(playerKey)) {
+      uniquePlayers.push(player);
+      playerKeys.add(playerKey);
+    }
+  });
+
+  return { americano, positionMap, players: uniquePlayers };
+}
+
+function matchIdentity(event, name, context) {
+  const nameKey = normalizedKey(name);
+  if (!nameKey) return "";
+  if (!context.americano) return String(name).trim();
+
+  if (nameKey === normalizedKey(event.reves1) || nameKey === normalizedKey(event.drive1)) {
+    return String(name).trim();
+  }
+  if (nameKey === normalizedKey(event.reves2)) return RIVAL_REVES;
+  if (nameKey === normalizedKey(event.drive2)) return RIVAL_DRIVE;
+  return context.positionMap.get(nameKey) || String(name).trim();
+}
+
+function matchMetrics(events, player, context) {
+  const playerKey = normalizedKey(player);
+  let W = 0, EP = 0, EF = 0, ENF = 0, services = 0, firstServices = 0;
+  events.forEach(event => {
+    const eventPlayer = normalizedKey(matchIdentity(event, event.player, context));
+    const forcedBy = normalizedKey(matchIdentity(event, event.forcedBy, context));
+    const server = normalizedKey(matchIdentity(event, event.server, context));
+    if (eventPlayer === playerKey && event.eventType === "Winner") W++;
+    if (eventPlayer === playerKey && event.eventType === "Error forzado") EF++;
+    if (eventPlayer === playerKey && event.eventType === "Error no forzado") ENF++;
+    if (forcedBy === playerKey && event.eventType === "Error forzado") EP++;
+    if (server === playerKey) {
+      services++;
+      if (["1er saque", "primer saque", "1 saque"].includes(normalizedKey(event.serveType))) firstServices++;
+    }
+  });
+  const score = SCORE.W * W + SCORE.EP * EP + SCORE.EF * EF + SCORE.ENF * ENF;
+  const points = events.length;
+  return { W, EP, EF, ENF, score, score100: pct(score, points), points, services, firstServices, firstServePct: pct(firstServices, services) };
+}
+
 function destroyChart(name) {
   if (charts[name]) charts[name].destroy();
 }
@@ -205,6 +328,145 @@ function renderPlayers(events) {
   }));
 }
 
+function matchDates() {
+  return [...new Set(payload.events.map(event => event.date).filter(Boolean))].sort().reverse();
+}
+
+function eventsForMatchSelection({ includeSet = true } = {}) {
+  const date = $("#match-date-filter").value;
+  const match = $("#match-filter").value;
+  const set = $("#match-set-filter").value;
+  return payload.events
+    .filter(event => event.date === date && String(event.match) === match && (!includeSet || set === "all" || String(event.set) === set))
+    .sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
+}
+
+function updateMatchOptions() {
+  const date = $("#match-date-filter").value;
+  const previous = $("#match-filter").value;
+  const matches = [...new Map(payload.events
+    .filter(event => event.date === date)
+    .map(event => [String(event.match), event])).entries()];
+  $("#match-filter").innerHTML = matches.map(([match, event]) => {
+    const type = event.matchType ? ` · ${escapeHtml(event.matchType)}` : "";
+    return `<option value="${escapeHtml(match)}">${escapeHtml(match)}${type}</option>`;
+  }).join("");
+  if (matches.some(([match]) => match === previous)) $("#match-filter").value = previous;
+  updateMatchSetOptions();
+}
+
+function updateMatchSetOptions() {
+  const previous = $("#match-set-filter").value;
+  const sets = [...new Set(eventsForMatchSelection({ includeSet: false }).map(event => String(event.set)))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  $("#match-set-filter").innerHTML = `<option value="all">Todos</option>${sets.map(set => `<option value="${escapeHtml(set)}">Set ${escapeHtml(set)}</option>`).join("")}`;
+  if (previous === "all" || sets.includes(previous)) $("#match-set-filter").value = previous || "all";
+}
+
+function initializeMatchFilters() {
+  const dates = matchDates();
+  $("#match-date-filter").innerHTML = dates.map(date => `<option value="${escapeHtml(date)}">${date.split("-").reverse().join("-")}</option>`).join("");
+  updateMatchOptions();
+}
+
+function matchFinalLabelsPlugin() {
+  return {
+    id: "matchFinalLabels",
+    afterDatasetsDraw(chart) {
+      const { ctx, chartArea } = chart;
+      ctx.save();
+      ctx.font = "700 11px Inter, sans-serif";
+      ctx.textBaseline = "middle";
+      chart.data.datasets.forEach((dataset, index) => {
+        const meta = chart.getDatasetMeta(index);
+        const point = meta.data.at(-1);
+        if (!point || !dataset.data.length) return;
+        const value = dataset.data.at(-1);
+        ctx.fillStyle = dataset.borderColor;
+        ctx.fillText(`${value >= 0 ? "+" : ""}${value}`, Math.min(point.x + 7, chartArea.right + 8), point.y);
+      });
+      ctx.restore();
+    }
+  };
+}
+
+function renderMatch() {
+  const events = eventsForMatchSelection();
+  const hasEvents = events.length > 0;
+  $("#match-empty").classList.toggle("hidden", hasEvents);
+  $("#match-summary-cards").classList.toggle("hidden", !hasEvents);
+  $(".match-chart-card").classList.toggle("hidden", !hasEvents);
+  if (!hasEvents) return;
+
+  const context = buildMatchContext(events);
+  const selectedSet = $("#match-set-filter").value;
+  const dateText = events[0].date.split("-").reverse().join("-");
+  const type = events[0].matchType || "Partido";
+  $("#match-chart-title").textContent = `Score acumulado · ${dateText}${selectedSet === "all" ? "" : ` · Set ${selectedSet}`}`;
+  $("#match-badge").textContent = context.americano ? "Americano · rivales agrupados" : type;
+
+  const running = new Map(context.players.map(player => [normalizedKey(player.name), 0]));
+  const series = new Map(context.players.map(player => [normalizedKey(player.name), []]));
+  events.forEach(event => {
+    const eventPlayer = normalizedKey(matchIdentity(event, event.player, context));
+    const forcedBy = normalizedKey(matchIdentity(event, event.forcedBy, context));
+    context.players.forEach(player => {
+      const playerKey = normalizedKey(player.name);
+      let value = running.get(playerKey) || 0;
+      if (eventPlayer === playerKey && event.eventType === "Winner") value += SCORE.W;
+      if (eventPlayer === playerKey && event.eventType === "Error forzado") value += SCORE.EF;
+      if (eventPlayer === playerKey && event.eventType === "Error no forzado") value += SCORE.ENF;
+      if (forcedBy === playerKey && event.eventType === "Error forzado") value += SCORE.EP;
+      running.set(playerKey, value);
+      series.get(playerKey).push(value);
+    });
+  });
+
+  makeChart("match", $("#match-chart"), {
+    type: "line",
+    data: {
+      labels: events.map((_, index) => index + 1),
+      datasets: context.players.map((player, index) => ({
+        label: player.name,
+        data: series.get(normalizedKey(player.name)),
+        borderColor: MATCH_COLORS[index % MATCH_COLORS.length],
+        backgroundColor: MATCH_COLORS[index % MATCH_COLORS.length],
+        pointRadius: events.length > 80 ? 0 : 2,
+        pointHoverRadius: 5,
+        borderWidth: 2.2,
+        tension: .16
+      }))
+    },
+    plugins: [matchFinalLabelsPlugin()],
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      layout: { padding: { right: 44 } },
+      plugins: { legend: { position: "bottom", labels: { usePointStyle: true, boxWidth: 9 } }, tooltip: { callbacks: { title: items => `Punto ${items[0].label}`, label: item => `${item.dataset.label}: ${item.raw >= 0 ? "+" : ""}${item.raw}` } } },
+      scales: {
+        x: { grid: { color: COLORS.grid }, title: { display: true, text: "Punto" } },
+        y: { grid: { color: COLORS.grid }, title: { display: true, text: "Score acumulado" } }
+      }
+    }
+  });
+
+  $("#match-summary-cards").innerHTML = context.players.map((player, index) => {
+    const data = matchMetrics(events, player.name, context);
+    const color = MATCH_COLORS[index % MATCH_COLORS.length];
+    const service = data.services ? `${fmt(data.firstServePct)}% (${data.firstServices}/${data.services})` : "N/D";
+    return `<article class="card match-player-card" style="--accent:${color}">
+      <header><div><span>${escapeHtml(player.team)} · ${escapeHtml(player.position)}</span><h3>${escapeHtml(player.name)}</h3></div><div class="match-score"><small>Score / 100</small><strong>${signed(data.score100)}</strong><em>${data.score >= 0 ? "+" : ""}${data.score} total</em></div></header>
+      <div class="match-metrics">
+        <div class="metric-w"><span>Winners</span><b>${data.W}</b></div>
+        <div class="metric-ep"><span>Errores provocados</span><b>${data.EP}</b></div>
+        <div class="metric-ef"><span>Errores forzados</span><b>${data.EF}</b></div>
+        <div class="metric-enf"><span>Errores no forzados</span><b>${data.ENF}</b></div>
+        <div><span>1er servicio</span><b>${service}</b></div>
+      </div>
+    </article>`;
+  }).join("");
+}
+
 function metricCell(value, type) { return `<span class="metric-${type}">${value}</span>`; }
 
 function renderTable(selector, headers, rows) {
@@ -214,6 +476,9 @@ function renderTable(selector, headers, rows) {
 function activateTab(id) {
   $$(".tab").forEach(tab => tab.classList.toggle("is-active", tab.dataset.tab === id));
   $$(".panel").forEach(panel => panel.classList.toggle("is-active", panel.id === id));
+  $("#global-filters").classList.toggle("hidden", id === "match");
+  $("#hero-score-card").classList.toggle("hidden", id === "match");
+  if (id === "match") renderMatch();
   setTimeout(() => Object.values(charts).forEach(chart => chart.resize()), 0);
 }
 
@@ -222,7 +487,7 @@ function updateDashboard() {
   activeEvents = filterEvents();
   const hasData = metrics(activeEvents, player).points > 0;
   $("#empty-state").classList.toggle("hidden", hasData);
-  $$(".panel").forEach(panel => panel.classList.toggle("hidden", !hasData));
+  $$(".panel").forEach(panel => panel.classList.toggle("hidden", !hasData && panel.id !== "match"));
   if (!hasData) { $("#hero-score").textContent = "—"; return; }
   renderSummary(activeEvents, player);
   renderEvolution(activeEvents, player);
@@ -234,6 +499,10 @@ function updateDashboard() {
 
 function initializeFilters() {
   $("#player-filter").innerHTML = payload.players.map(player => `<option>${escapeHtml(player)}</option>`).join("");
+  const defaultPlayer = payload.players
+    .map(player => ({ player, points: payload.events.filter(event => isParticipant(event, player)).length }))
+    .sort((a, b) => b.points - a.points || a.player.localeCompare(b.player))[0]?.player;
+  if (defaultPlayer) $("#player-filter").value = defaultPlayer;
   const dates = payload.events.map(event => event.date).filter(Boolean).sort();
   $("#date-from").value = dates[0] || "";
   $("#date-to").value = dates.at(-1) || "";
@@ -257,14 +526,19 @@ async function init() {
     payload = await response.json();
     if (!payload.events?.length || !payload.players?.length) throw new Error("El archivo de datos está vacío");
     initializeFilters();
+    initializeMatchFilters();
     $("#demo-banner").classList.toggle("hidden", !payload.isDemo);
     $("#data-status").textContent = `${payload.events.length.toLocaleString("es-CL")} eventos · ${payload.players.length} jugadores · actualizado ${new Date(payload.generatedAt).toLocaleString("es-CL")}`;
     ["#player-filter", "#date-from", "#date-to", "#point-filter", "#set-filter"].forEach(selector => $(selector).addEventListener("change", updateDashboard));
     $("#shot-order").addEventListener("change", () => renderShots(activeEvents, $("#player-filter").value));
     $("#player-search").addEventListener("input", () => renderPlayers(activeEvents));
+    $("#match-date-filter").addEventListener("change", () => { updateMatchOptions(); renderMatch(); });
+    $("#match-filter").addEventListener("change", () => { updateMatchSetOptions(); renderMatch(); });
+    $("#match-set-filter").addEventListener("change", renderMatch);
     $("#reset-filters").addEventListener("click", resetFilters);
     $$(".tab").forEach(tab => tab.addEventListener("click", () => activateTab(tab.dataset.tab)));
     updateDashboard();
+    renderMatch();
   } catch (error) {
     $("#data-status").textContent = `No fue posible cargar los datos: ${error.message}`;
     $("#empty-state").classList.remove("hidden");
