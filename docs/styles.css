@@ -91,6 +91,8 @@ select:focus, input:focus { border-color:var(--green); box-shadow:0 0 0 3px rgba
 .chart-wrap--tall { height:390px; }
 .chart-wrap--xl { height:520px; }
 .chart-card--wide { margin-bottom:14px; }
+.shot-differential-card { margin-top:14px; }
+.chart-note { margin:12px 0 0; color:var(--muted); font-size:.78rem; text-align:right; }
 .formula-card { color:white; background:linear-gradient(150deg, #062c20, #075a3d); }
 .formula-card .kicker { color:var(--lime); }
 .formula { margin:32px 0 18px; padding:22px 10px; text-align:center; border-block:1px solid rgba(255,255,255,.13); font-size:1.38rem; white-space:nowrap; }

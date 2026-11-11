@@ -120,6 +120,16 @@
           <div class="chart-wrap chart-wrap--xl"><canvas id="shots-chart"></canvas></div>
         </article>
       </div>
+      <article class="card chart-card chart-card--wide shot-differential-card">
+        <div class="section-heading section-heading--split">
+          <div><span class="kicker">EVOLUCIÓN POR PARTIDO</span><h2>Diferencial por fecha</h2></div>
+          <label class="inline-select">Golpe
+            <select id="shot-differential-filter"><option value="all">Todos los golpes</option></select>
+          </label>
+        </div>
+        <div class="chart-wrap chart-wrap--tall"><canvas id="shot-differential-chart"></canvas></div>
+        <p class="chart-note">Diferencial = Winners + errores provocados − errores forzados − errores no forzados.</p>
+      </article>
     </section>
 
     <section id="keypoints" class="panel">

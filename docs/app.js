@@ -270,6 +270,82 @@ function renderShots(events, player) {
     ] },
     options: { indexAxis: "y", responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom", align: "end", labels: { boxWidth: 12, font: { size: 10 } } }, tooltip: { callbacks: { label: context => `${context.dataset.label}: ${fmt(Math.abs(context.raw))}%` } } }, scales: { x: { grid: { color: COLORS.grid }, ticks: { callback: value => `${Math.abs(value)}%` } }, y: { grid: { display: false } } } }
   });
+  renderShotDifferential(events, player);
+}
+
+function shotDifferentialRows(events, player, selectedShot) {
+  const playerKey = key(player);
+  const groups = new Map();
+  events.filter(event => isParticipant(event, player)).forEach(event => {
+    const id = `${event.date}|${event.match}`;
+    if (!groups.has(id)) groups.set(id, []);
+    groups.get(id).push(event);
+  });
+
+  return [...groups.entries()].map(([id, matchEvents]) => {
+    const [date, ...matchParts] = id.split("|");
+    const filtered = selectedShot === "all"
+      ? matchEvents
+      : matchEvents.filter(event => key(event.shotType) === key(selectedShot));
+    const W = filtered.filter(event => key(event.player) === playerKey && event.eventType === "Winner").length;
+    const EP = filtered.filter(event => key(event.forcedBy) === playerKey && event.eventType === "Error forzado").length;
+    const EF = filtered.filter(event => key(event.player) === playerKey && event.eventType === "Error forzado").length;
+    const ENF = filtered.filter(event => key(event.player) === playerKey && event.eventType === "Error no forzado").length;
+    return { date, match: matchParts.join("|"), W, EP, EF, ENF, differential: W + EP - EF - ENF };
+  }).sort((a, b) => a.date.localeCompare(b.date) || a.match.localeCompare(b.match));
+}
+
+function renderShotDifferential(events, player) {
+  const selectedShot = $("#shot-differential-filter").value;
+  const rows = shotDifferentialRows(events, player, selectedShot);
+  const selectedLabel = selectedShot === "all" ? "Todos los golpes" : selectedShot;
+  makeChart("shotDifferential", $("#shot-differential-chart"), {
+    type: "line",
+    data: {
+      labels: rows.map(row => row.date.split("-").reverse().join("-")),
+      datasets: [{
+        label: `Diferencial · ${selectedLabel}`,
+        data: rows.map(row => row.differential),
+        borderColor: COLORS.ink,
+        backgroundColor: "rgba(20, 37, 30, .08)",
+        pointBackgroundColor: rows.map(row => row.differential > 0 ? COLORS.W : row.differential < 0 ? COLORS.ENF : "#78909c"),
+        pointBorderColor: "#ffffff",
+        pointBorderWidth: 2,
+        pointRadius: 5,
+        pointHoverRadius: 7,
+        borderWidth: 2,
+        tension: .22,
+        fill: true
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: "bottom" },
+        tooltip: { callbacks: {
+          title: items => `${rows[items[0].dataIndex].date.split("-").reverse().join("-")} · ${rows[items[0].dataIndex].match}`,
+          afterLabel: item => {
+            const row = rows[item.dataIndex];
+            return `W ${row.W} · EP ${row.EP} · EF ${row.EF} · ENF ${row.ENF}`;
+          }
+        } }
+      },
+      scales: {
+        x: { grid: { display: false }, title: { display: true, text: "Fecha del partido" } },
+        y: { grid: { color: context => context.tick.value === 0 ? "rgba(20,37,30,.65)" : COLORS.grid, lineWidth: context => context.tick.value === 0 ? 2 : 1 }, title: { display: true, text: "Diferencial" }, ticks: { precision: 0 } }
+      }
+    }
+  });
+}
+
+function initializeShotDifferentialFilter() {
+  const shots = [...new Map(payload.events.map(event => {
+    const shot = event.shotType || "Sin golpe";
+    return [key(shot), shot];
+  })).values()]
+    .sort((a, b) => a.localeCompare(b, "es", { sensitivity: "base" }));
+  $("#shot-differential-filter").innerHTML = `<option value="all">Todos los golpes</option>${shots.map(shot => `<option value="${escapeHtml(shot)}">${escapeHtml(shot)}</option>`).join("")}`;
 }
 
 function renderKeyPoints(player) {
@@ -526,11 +602,13 @@ async function init() {
     payload = await response.json();
     if (!payload.events?.length || !payload.players?.length) throw new Error("El archivo de datos está vacío");
     initializeFilters();
+    initializeShotDifferentialFilter();
     initializeMatchFilters();
     $("#demo-banner").classList.toggle("hidden", !payload.isDemo);
     $("#data-status").textContent = `${payload.events.length.toLocaleString("es-CL")} eventos · ${payload.players.length} jugadores · actualizado ${new Date(payload.generatedAt).toLocaleString("es-CL")}`;
     ["#player-filter", "#date-from", "#date-to", "#point-filter", "#set-filter"].forEach(selector => $(selector).addEventListener("change", updateDashboard));
     $("#shot-order").addEventListener("change", () => renderShots(activeEvents, $("#player-filter").value));
+    $("#shot-differential-filter").addEventListener("change", () => renderShotDifferential(activeEvents, $("#player-filter").value));
     $("#player-search").addEventListener("input", () => renderPlayers(activeEvents));
     $("#match-date-filter").addEventListener("change", () => { updateMatchOptions(); renderMatch(); });
     $("#match-filter").addEventListener("change", () => { updateMatchSetOptions(); renderMatch(); });
