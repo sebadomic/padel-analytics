@@ -224,11 +224,28 @@ function evolutionRows(events, player) {
   }).filter(row => row.points).sort((a, b) => a.date.localeCompare(b.date) || a.match.localeCompare(b.match));
 }
 
+function linearTrend(values) {
+  if (!values.length) return [];
+  if (values.length === 1) return [values[0]];
+  const n = values.length;
+  const sumX = n * (n - 1) / 2;
+  const sumY = values.reduce((sum, value) => sum + value, 0);
+  const sumXY = values.reduce((sum, value, index) => sum + index * value, 0);
+  const sumXX = values.reduce((sum, _, index) => sum + index * index, 0);
+  const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
+  const intercept = (sumY - slope * sumX) / n;
+  return values.map((_, index) => intercept + slope * index);
+}
+
 function renderEvolution(events, player) {
   const rows = evolutionRows(events, player);
+  const scoreValues = rows.map(row => row.score100);
   makeChart("evolution", $("#evolution-chart"), {
     type: "line",
-    data: { labels: rows.map(row => row.date.split("-").reverse().join("-")), datasets: [{ label: "Score / 100", data: rows.map(row => row.score100), borderColor: COLORS.score, backgroundColor: "rgba(94,53,177,.12)", fill: true, tension: .28, pointRadius: 4, pointHoverRadius: 7 }] },
+    data: { labels: rows.map(row => row.date.split("-").reverse().join("-")), datasets: [
+      { label: "Score / 100", data: scoreValues, borderColor: COLORS.score, backgroundColor: "rgba(94,53,177,.12)", fill: true, tension: .28, pointRadius: 4, pointHoverRadius: 7 },
+      { label: "Tendencia lineal", data: linearTrend(scoreValues), borderColor: "#c62828", backgroundColor: "transparent", borderWidth: 2, borderDash: [9, 6], fill: false, tension: 0, pointRadius: 0, pointHoverRadius: 0 }
+    ] },
     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom" } }, scales: { ...baseScales(), y: { grid: { color: COLORS.grid }, title: { display: true, text: "Score / 100" } } } }
   });
   renderTable("#evolution-table", ["Fecha", "Partido", "Puntos", "W", "EP", "EF", "ENF", "Score/100"], rows.map(row => [
@@ -291,7 +308,7 @@ function shotDifferentialRows(events, player, selectedShot) {
     const EP = filtered.filter(event => key(event.forcedBy) === playerKey && event.eventType === "Error forzado").length;
     const EF = filtered.filter(event => key(event.player) === playerKey && event.eventType === "Error forzado").length;
     const ENF = filtered.filter(event => key(event.player) === playerKey && event.eventType === "Error no forzado").length;
-    return { date, match: matchParts.join("|"), W, EP, EF, ENF, differential: W + EP - EF - ENF };
+    return { date, match: matchParts.join("|"), W, EP, EF, ENF, differential: W + EP - ENF };
   }).sort((a, b) => a.date.localeCompare(b.date) || a.match.localeCompare(b.match));
 }
 
@@ -327,7 +344,7 @@ function renderShotDifferential(events, player) {
           title: items => `${rows[items[0].dataIndex].date.split("-").reverse().join("-")} · ${rows[items[0].dataIndex].match}`,
           afterLabel: item => {
             const row = rows[item.dataIndex];
-            return `W ${row.W} · EP ${row.EP} · EF ${row.EF} · ENF ${row.ENF}`;
+            return `W ${row.W} · EP ${row.EP} · ENF ${row.ENF}`;
           }
         } }
       },
