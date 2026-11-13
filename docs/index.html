@@ -56,6 +56,14 @@
         <span class="filter__label">Sets</span>
         <div id="set-filter" class="check-row"></div>
       </div>
+      <div class="filter filter--match-types">
+        <span class="filter__label">Tipo de partido</span>
+        <div id="match-type-filter" class="check-row">
+          <label class="set-check"><input type="checkbox" value="tournament" checked> Torneo</label>
+          <label class="set-check"><input type="checkbox" value="americano" checked> Americano</label>
+          <label class="set-check"><input type="checkbox" value="amistoso" checked> Amistoso</label>
+        </div>
+      </div>
       <button id="reset-filters" class="button button--ghost" type="button">Restablecer</button>
     </section>
 
@@ -67,6 +75,7 @@
       <button class="tab" data-tab="sets">Sets</button>
       <button class="tab" data-tab="players">Jugadores</button>
       <button class="tab" data-tab="match">Partido</button>
+      <button class="tab" data-tab="match-types">Tipo de partido</button>
     </nav>
 
     <section id="summary" class="panel is-active">
@@ -193,6 +202,24 @@
         <h2>No hay eventos para este partido</h2>
         <p>Selecciona otra fecha, partido o set.</p>
       </section>
+    </section>
+
+    <section id="match-types" class="panel">
+      <div id="match-type-cards" class="match-type-grid"></div>
+
+      <article class="card chart-card chart-card--wide match-type-chart-card">
+        <div class="section-heading">
+          <div><span class="kicker">COMPARACIÓN</span><h2>Score / 100 por tipo de partido</h2></div>
+        </div>
+        <div class="chart-wrap chart-wrap--tall"><canvas id="match-type-chart"></canvas></div>
+      </article>
+
+      <article class="card table-card">
+        <div class="section-heading">
+          <div><span class="kicker">DETALLE</span><h2>Rendimiento por tipo de partido</h2></div>
+        </div>
+        <div class="table-scroll"><table id="match-type-table"></table></div>
+      </article>
     </section>
 
     <section id="empty-state" class="card empty hidden">

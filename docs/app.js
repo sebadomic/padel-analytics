@@ -33,6 +33,11 @@ function metrics(events, player) {
 }
 
 const MATCH_COLORS = ["#0a6b46", "#5e35b1", "#0277bd", "#e65100"];
+const MATCH_TYPE_DEFS = [
+  { key: "tournament", label: "Torneo", color: "#5e35b1" },
+  { key: "americano", label: "Americano", color: "#0a6b46" },
+  { key: "amistoso", label: "Amistoso", color: "#0277bd" }
+];
 const RIVAL_REVES = "Reves Rival";
 const RIVAL_DRIVE = "Drive Rival";
 
@@ -172,16 +177,30 @@ function selectedSets() {
   return $$("#set-filter input:checked").map(input => input.value);
 }
 
+function matchCategory(event) {
+  const value = normalizedKey(event.matchType || event.match);
+  if (value.includes("americano")) return "americano";
+  if (value.includes("amistoso")) return "amistoso";
+  if (value.includes("campeonato") || value.includes("torneo") || value.includes("toky")) return "tournament";
+  return "other";
+}
+
+function selectedMatchTypes() {
+  return $$("#match-type-filter input:checked").map(input => input.value);
+}
+
 function filterEvents({ ignorePointType = false } = {}) {
   const from = $("#date-from").value;
   const to = $("#date-to").value;
   const sets = selectedSets();
+  const matchTypes = selectedMatchTypes();
   const pointType = $("#point-filter").value;
   return payload.events.filter(event => {
     const inDates = (!from || event.date >= from) && (!to || event.date <= to);
     const inSets = sets.includes(String(event.set));
+    const inMatchType = matchTypes.includes(matchCategory(event));
     const inPointType = ignorePointType || pointType === "all" || (pointType === "key" ? event.pointType === "Key Point" : event.pointType !== "Key Point");
-    return inDates && inSets && inPointType;
+    return inDates && inSets && inMatchType && inPointType;
   });
 }
 
@@ -421,6 +440,55 @@ function renderPlayers(events) {
   }));
 }
 
+function renderMatchTypes(events, player) {
+  const rows = MATCH_TYPE_DEFS.map(type => {
+    const typeEvents = events.filter(event => matchCategory(event) === type.key);
+    return { ...type, matches: uniqueMatches(typeEvents, player), ...metrics(typeEvents, player) };
+  }).filter(row => row.points);
+
+  $("#match-type-cards").innerHTML = rows.map(row => `
+    <article class="card match-type-card" style="--accent:${row.color}">
+      <header>
+        <div><span>TIPO DE PARTIDO</span><h3>${row.label}</h3><small>${row.matches} ${row.matches === 1 ? "partido" : "partidos"} · ${row.points} puntos</small></div>
+        <div class="match-type-score"><span>Score / 100</span><strong>${signed(row.score100)}</strong></div>
+      </header>
+      <div class="match-type-metrics">
+        <div class="metric-w"><span>Winners</span><b>${fmt(row.pctW)}%</b><small>${row.W} eventos</small></div>
+        <div class="metric-ep"><span>Errores provocados</span><b>${fmt(row.pctEP)}%</b><small>${row.EP} eventos</small></div>
+        <div class="metric-ef"><span>Errores forzados</span><b>${fmt(row.pctEF)}%</b><small>${row.EF} eventos</small></div>
+        <div class="metric-enf"><span>Errores no forzados</span><b>${fmt(row.pctENF)}%</b><small>${row.ENF} eventos</small></div>
+      </div>
+    </article>`).join("");
+
+  makeChart("matchTypes", $("#match-type-chart"), {
+    type: "bar",
+    data: {
+      labels: rows.map(row => row.label),
+      datasets: [{
+        label: "Score / 100",
+        data: rows.map(row => row.score100),
+        backgroundColor: rows.map(row => row.score100 >= 0 ? COLORS.W : COLORS.ENF),
+        borderRadius: 7
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: item => `Score / 100: ${signed(item.raw)}` } } },
+      scales: { ...baseScales(), y: { grid: { color: COLORS.grid }, title: { display: true, text: "Score / 100" } } }
+    }
+  });
+
+  renderTable("#match-type-table", ["Tipo", "Partidos", "Puntos", "% Winners", "% EP", "% EF", "% ENF", "Score/100"], rows.map(row => [
+    row.label, row.matches, row.points,
+    metricCell(`${fmt(row.pctW)}% (${row.W})`, "w"),
+    metricCell(`${fmt(row.pctEP)}% (${row.EP})`, "ep"),
+    metricCell(`${fmt(row.pctEF)}% (${row.EF})`, "ef"),
+    metricCell(`${fmt(row.pctENF)}% (${row.ENF})`, "enf"),
+    metricCell(signed(row.score100), "score")
+  ]));
+}
+
 function matchDates() {
   return [...new Set(payload.events.map(event => event.date).filter(Boolean))].sort().reverse();
 }
@@ -588,6 +656,7 @@ function updateDashboard() {
   renderKeyPoints(player);
   renderSets(activeEvents, player);
   renderPlayers(activeEvents);
+  renderMatchTypes(activeEvents, player);
 }
 
 function initializeFilters() {
@@ -609,6 +678,7 @@ function resetFilters() {
   $("#date-to").value = dates.at(-1) || "";
   $("#point-filter").value = "all";
   $$("#set-filter input").forEach(input => { input.checked = true; });
+  $$("#match-type-filter input").forEach(input => { input.checked = true; });
   updateDashboard();
 }
 
@@ -623,7 +693,7 @@ async function init() {
     initializeMatchFilters();
     $("#demo-banner").classList.toggle("hidden", !payload.isDemo);
     $("#data-status").textContent = `${payload.events.length.toLocaleString("es-CL")} eventos · ${payload.players.length} jugadores · actualizado ${new Date(payload.generatedAt).toLocaleString("es-CL")}`;
-    ["#player-filter", "#date-from", "#date-to", "#point-filter", "#set-filter"].forEach(selector => $(selector).addEventListener("change", updateDashboard));
+    ["#player-filter", "#date-from", "#date-to", "#point-filter", "#set-filter", "#match-type-filter"].forEach(selector => $(selector).addEventListener("change", updateDashboard));
     $("#shot-order").addEventListener("change", () => renderShots(activeEvents, $("#player-filter").value));
     $("#shot-differential-filter").addEventListener("change", () => renderShotDifferential(activeEvents, $("#player-filter").value));
     $("#player-search").addEventListener("input", () => renderPlayers(activeEvents));
