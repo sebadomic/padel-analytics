@@ -550,6 +550,28 @@ function matchFinalLabelsPlugin() {
   };
 }
 
+function matchSetDividersPlugin(setEnds) {
+  return {
+    id: "matchSetDividers",
+    beforeDatasetsDraw(chart) {
+      const { ctx, chartArea, scales } = chart;
+      if (!scales.x || !setEnds.length) return;
+      ctx.save();
+      ctx.strokeStyle = "rgba(20, 37, 30, .58)";
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([7, 6]);
+      setEnds.forEach(({ index }) => {
+        const x = scales.x.getPixelForValue(index);
+        ctx.beginPath();
+        ctx.moveTo(x, chartArea.top);
+        ctx.lineTo(x, chartArea.bottom);
+        ctx.stroke();
+      });
+      ctx.restore();
+    }
+  };
+}
+
 function renderMatch() {
   const events = eventsForMatchSelection();
   const hasEvents = events.length > 0;
@@ -567,6 +589,12 @@ function renderMatch() {
 
   const running = new Map(context.players.map(player => [normalizedKey(player.name), 0]));
   const series = new Map(context.players.map(player => [normalizedKey(player.name), []]));
+  const servingPlayers = events.map(event => normalizedKey(matchIdentity(event, event.server, context)));
+  const setEndMap = new Map();
+  events.forEach((event, index) => setEndMap.set(String(event.set), index));
+  const setEnds = [...setEndMap.entries()]
+    .map(([set, index]) => ({ set, index }))
+    .sort((a, b) => a.index - b.index);
   events.forEach(event => {
     const eventPlayer = normalizedKey(matchIdentity(event, event.player, context));
     const forcedBy = normalizedKey(matchIdentity(event, event.forcedBy, context));
@@ -586,24 +614,36 @@ function renderMatch() {
     type: "line",
     data: {
       labels: events.map((_, index) => index + 1),
-      datasets: context.players.map((player, index) => ({
-        label: player.name,
-        data: series.get(normalizedKey(player.name)),
-        borderColor: MATCH_COLORS[index % MATCH_COLORS.length],
-        backgroundColor: MATCH_COLORS[index % MATCH_COLORS.length],
-        pointRadius: events.length > 80 ? 0 : 2,
-        pointHoverRadius: 5,
-        borderWidth: 2.2,
-        tension: .16
-      }))
+      datasets: context.players.map((player, index) => {
+        const playerKey = normalizedKey(player.name);
+        const color = MATCH_COLORS[index % MATCH_COLORS.length];
+        const baseRadius = events.length > 80 ? 0 : 2;
+        return {
+          label: player.name,
+          data: series.get(playerKey),
+          borderColor: color,
+          backgroundColor: color,
+          pointBackgroundColor: servingPlayers.map(server => server === playerKey ? "#000000" : color),
+          pointBorderColor: servingPlayers.map(server => server === playerKey ? "#ffffff" : color),
+          pointBorderWidth: servingPlayers.map(server => server === playerKey ? 1.4 : 0),
+          pointRadius: servingPlayers.map(server => server === playerKey ? 5 : baseRadius),
+          pointHoverRadius: servingPlayers.map(server => server === playerKey ? 7 : 5),
+          borderWidth: 2.2,
+          tension: .16
+        };
+      })
     },
-    plugins: [matchFinalLabelsPlugin()],
+    plugins: [matchSetDividersPlugin(setEnds), matchFinalLabelsPlugin()],
     options: {
       responsive: true,
       maintainAspectRatio: false,
       interaction: { mode: "index", intersect: false },
       layout: { padding: { right: 44 } },
-      plugins: { legend: { position: "bottom", labels: { usePointStyle: true, boxWidth: 9 } }, tooltip: { callbacks: { title: items => `Punto ${items[0].label}`, label: item => `${item.dataset.label}: ${item.raw >= 0 ? "+" : ""}${item.raw}` } } },
+      plugins: { legend: { position: "bottom", labels: { usePointStyle: false, boxWidth: 22, boxHeight: 3 } }, tooltip: { callbacks: { title: items => `Punto ${items[0].label}`, label: item => {
+        const playerKey = normalizedKey(item.dataset.label);
+        const serving = servingPlayers[item.dataIndex] === playerKey ? " · Sacando" : "";
+        return `${item.dataset.label}: ${item.raw >= 0 ? "+" : ""}${item.raw}${serving}`;
+      } } } },
       scales: {
         x: { grid: { color: COLORS.grid }, title: { display: true, text: "Punto" } },
         y: { grid: { color: COLORS.grid }, title: { display: true, text: "Score acumulado" } }
