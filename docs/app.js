@@ -624,10 +624,10 @@ function renderMatch() {
           borderColor: color,
           backgroundColor: color,
           pointBackgroundColor: servingPlayers.map(server => server === playerKey ? "#000000" : color),
-          pointBorderColor: servingPlayers.map(server => server === playerKey ? "#ffffff" : color),
-          pointBorderWidth: servingPlayers.map(server => server === playerKey ? 1.4 : 0),
-          pointRadius: servingPlayers.map(server => server === playerKey ? 5 : baseRadius),
-          pointHoverRadius: servingPlayers.map(server => server === playerKey ? 7 : 5),
+        pointBorderColor: servingPlayers.map(server => server === playerKey ? "#000000" : color),
+        pointBorderWidth: 0,
+        pointRadius: servingPlayers.map(server => server === playerKey ? 2.2 : baseRadius),
+        pointHoverRadius: servingPlayers.map(server => server === playerKey ? 4 : 5),
           borderWidth: 2.2,
           tension: .16
         };
