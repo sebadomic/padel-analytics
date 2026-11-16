@@ -116,7 +116,18 @@
     <section id="shots" class="panel">
       <div class="content-grid content-grid--equal">
         <article class="card table-card">
-          <div class="section-heading"><div><span class="kicker">EVENTOS</span><h2>Rendimiento por golpe</h2></div></div>
+          <div class="section-heading section-heading--split">
+            <div><span class="kicker">EVENTOS</span><h2>Rendimiento por golpe</h2></div>
+            <label class="inline-select">Ordenar tabla por
+              <select id="shot-table-order">
+                <option value="events">Eventos</option>
+                <option value="W">Winners</option>
+                <option value="ENF">Errores no forzados</option>
+                <option value="EF">Errores forzados</option>
+                <option value="EP">Errores provocados</option>
+              </select>
+            </label>
+          </div>
           <div class="table-scroll"><table id="shots-table"></table></div>
         </article>
         <article class="card chart-card">

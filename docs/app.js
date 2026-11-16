@@ -293,7 +293,9 @@ function shotRows(events, player) {
 
 function renderShots(events, player) {
   const rows = shotRows(events, player);
-  renderTable("#shots-table", ["Golpe", "Eventos", "W", "EP", "EF", "ENF"], rows.map(row => [escapeHtml(row.shot), row.events, metricCell(row.W, "w"), metricCell(row.EP, "ep"), metricCell(row.EF, "ef"), metricCell(row.ENF, "enf")]));
+  const tableOrder = $("#shot-table-order").value;
+  const tableRows = [...rows].sort((a, b) => b[tableOrder] - a[tableOrder] || b.events - a.events || a.shot.localeCompare(b.shot));
+  renderTable("#shots-table", ["Golpe", "Eventos", "W", "EP", "EF", "ENF"], tableRows.map(row => [escapeHtml(row.shot), row.events, metricCell(row.W, "w"), metricCell(row.EP, "ep"), metricCell(row.EF, "ef"), metricCell(row.ENF, "enf")]));
   const totalPositive = rows.reduce((sum, row) => sum + row.W + row.EP, 0);
   const totalENF = rows.reduce((sum, row) => sum + row.ENF, 0);
   const order = $("#shot-order").value;
@@ -734,6 +736,7 @@ async function init() {
     $("#demo-banner").classList.toggle("hidden", !payload.isDemo);
     $("#data-status").textContent = `${payload.events.length.toLocaleString("es-CL")} eventos · ${payload.players.length} jugadores · actualizado ${new Date(payload.generatedAt).toLocaleString("es-CL")}`;
     ["#player-filter", "#date-from", "#date-to", "#point-filter", "#set-filter", "#match-type-filter"].forEach(selector => $(selector).addEventListener("change", updateDashboard));
+    $("#shot-table-order").addEventListener("change", () => renderShots(activeEvents, $("#player-filter").value));
     $("#shot-order").addEventListener("change", () => renderShots(activeEvents, $("#player-filter").value));
     $("#shot-differential-filter").addEventListener("change", () => renderShotDifferential(activeEvents, $("#player-filter").value));
     $("#player-search").addEventListener("input", () => renderPlayers(activeEvents));
